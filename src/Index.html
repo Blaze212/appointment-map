@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --ink: #1B2420; --muted: #5E6B64; --line: #D3DAD2; --panel: #FFFFFF; --ground: #EEF1EC; --accent: #1B2420;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 14px/1.4 "Roboto", "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--ground); display: grid; grid-template-rows: auto 1fr; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  h1 { font-size: 18px; margin: 0; font-weight: 700; }
+  .updated { color: var(--muted); font-size: 12px; }
+  #search { flex: 1 1 320px; min-width: 0; }
+  #search gmp-place-autocomplete { width: 100%; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+  #map { min-height: 300px; }
+  aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 12px 16px 24px; display: grid; gap: 14px; align-content: start; }
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 58vh auto; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    body { grid-template-rows: auto 1fr; height: auto; }
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 2px solid var(--c); background: #fff; color: var(--ink); border-radius: 999px; padding: 4px 10px 4px 6px; font: 600 12px inherit; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .chip .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+  .chip.wk2 .dot { background: #fff; border: 2px solid var(--c); }
+  .chip[aria-pressed="false"] { opacity: .4; }
+  .chip:focus-visible, .row:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  h2 .bar { width: 16px; height: 4px; border-radius: 2px; background: var(--c); }
+  h2 a { margin-left: auto; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--muted); }
+  .row { display: grid; grid-template-columns: 26px 1fr; gap: 8px; padding: 6px; border-radius: 6px; cursor: pointer; }
+  .row:hover { background: var(--ground); }
+  .num { width: 24px; height: 24px; border-radius: 50%; background: var(--c); color: #fff; font: 600 12px/24px inherit; text-align: center; }
+  .wk2 .num { background: #fff; color: var(--c); border: 2px solid var(--c); line-height: 20px; }
+  .t { font-weight: 600; }
+  .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .fit { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #FAFBF8; }
+  .fit ol { margin: 6px 0 0; padding-left: 18px; }
+  .fit li { margin: 3px 0; }
+  .note { color: var(--muted); font-size: 12px; }
+  .empty { padding: 24px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Appointment Map</h1>
+    <div class="updated" id="updated"></div>
+  </div>
+  <div id="search"></div>
+</header>
+<main>
+  <div id="map"></div>
+  <aside id="panel">
+    <div class="chips" id="chips"></div>
+    <div id="fit" hidden></div>
+    <div id="list"></div>
+    <p class="note" id="skipped" hidden></p>
+    <p class="note">Shows the next 14 days of appointments that have an address. Past days drop off and calendar changes appear the next time this page opens. Filled pins are this week, outlined pins are next week.</p>
+  </aside>
+</main>
+
+<script>
+const PLAN = <?!= planJson ?>;
+const SETTINGS = <?!= settingsJson ?>;
+const API_KEY = SETTINGS.apiKey;
+const MAP_ID = SETTINGS.mapId;
+const WEEKDAY_COLORS = ['#B7791F', '#2563EB', '#E8710A', '#15803D', '#9333EA', '#DC2626', '#0E8A83'];
+const hiddenDates = new Set();
+const markers = [];
+const lines = [];
+
+const colorOf = s => WEEKDAY_COLORS[s.weekday];
+const daysFromToday = date => Math.round((new Date(date + 'T12:00:00') - new Date(PLAN.today + 'T12:00:00')) / 86400000);
+const isWeek2 = s => daysFromToday(s.date) >= 7;
+const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const mapsSearch = s => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.address);
+const directions = s => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(s.address);
+
+function routeUrl(stops) {
+  if (stops.length === 1) return mapsSearch(stops[0]);
+  const pts = stops.map(s => s.address);
+  let url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + encodeURIComponent(pts[0]) +
+    '&destination=' + encodeURIComponent(pts[pts.length - 1]);
+  if (pts.length > 2) url += '&waypoints=' + encodeURIComponent(pts.slice(1, -1).join('|'));
+  return url;
+}
+
+function milesBetween(a, b) {
+  const rad = x => x * Math.PI / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 3958.8 * 2 * Math.asin(Math.sqrt(h));
+}
+
+function byDate() {
+  const groups = new Map();
+  PLAN.stops.forEach((s, i) => {
+    s.n = i + 1;
+    if (!groups.has(s.date)) groups.set(s.date, []);
+    groups.get(s.date).push(s);
+  });
+  return groups;
+}
+
+function renderPanel(groups) {
+  document.getElementById('updated').textContent = (PLAN.calendarName ? PLAN.calendarName + ' · ' : '') + 'Updated ' + PLAN.generated + ' · ' + PLAN.stops.length + ' stops';
+  const chips = document.getElementById('chips');
+  const list = document.getElementById('list');
+  for (const [date, stops] of groups) {
+    const first = stops[0];
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (isWeek2(first) ? ' wk2' : '');
+    chip.style.setProperty('--c', colorOf(first));
+    chip.setAttribute('aria-pressed', 'true');
+    chip.innerHTML = '<span class="dot"></span>' + esc(first.dayLabel) + ' · ' + stops.length;
+    chip.addEventListener('click', () => {
+      hiddenDates.has(date) ? hiddenDates.delete(date) : hiddenDates.add(date);
+      chip.setAttribute('aria-pressed', String(!hiddenDates.has(date)));
+      applyFilter();
+    });
+    chips.appendChild(chip);
+
+    const section = document.createElement('section');
+    section.className = isWeek2(first) ? 'wk2' : '';
+    section.style.setProperty('--c', colorOf(first));
+    section.innerHTML = '<h2><span class="bar"></span>' + esc(first.dayLabel) +
+      '<a href="' + esc(routeUrl(stops)) + '" target="_blank" rel="noopener">' + (stops.length > 1 ? 'Route this day' : 'Open in Maps') + '</a></h2>';
+    for (const s of stops) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.tabIndex = 0;
+      row.innerHTML = '<div class="num">' + s.n + '</div><div><div class="t">' + esc(s.title) + '</div>' +
+        '<div class="meta">' + esc(s.time) + '–' + esc(s.endTime) + (s.confirmed ? '' : ' · not confirmed') + '</div>' +
+        '<div class="meta">' + esc(s.address) + '</div></div>';
+      row.addEventListener('click', () => focusStop(s));
+      row.addEventListener('keydown', e => { if (e.key === 'Enter') focusStop(s); });
+      section.appendChild(row);
+    }
+    list.appendChild(section);
+  }
+  if (!PLAN.stops.length) list.innerHTML = '<p class="empty">No appointments with an address in the next ' + PLAN.daysAhead + ' days.</p>';
+  if (PLAN.skipped.length) {
+    const el = document.getElementById('skipped');
+    el.hidden = false;
+    el.textContent = 'Could not find on the map: ' + PLAN.skipped.join(', ');
+  }
+}
+
+let map, info, focusStop = () => {};
+
+function applyFilter() {
+  for (const m of markers) m.marker.map = hiddenDates.has(m.stop.date) ? null : map;
+  for (const l of lines) l.line.setMap(hiddenDates.has(l.date) ? null : map);
+}
+
+function showFit(place, groups) {
+  const ranking = [...groups].map(([date, stops]) => {
+    const nearest = stops.reduce((best, s) => {
+      const d = milesBetween(place, s);
+      return !best || d < best.miles ? { stop: s, miles: d } : best;
+    }, null);
+    return { date, label: stops[0].dayLabel, nearest };
+  }).sort((a, b) => a.nearest.miles - b.nearest.miles).slice(0, 5);
+  const box = document.getElementById('fit');
+  box.hidden = false;
+  box.className = 'fit';
+  box.innerHTML = '<h2>Closest days to ' + esc(place.name) + '</h2>' +
+    (ranking.length ? '<ol>' + ranking.map(r => '<li><b>' + esc(r.label) + '</b>: ' + r.nearest.miles.toFixed(1) +
+      ' mi from ' + esc(r.nearest.stop.title) + ' (' + esc(r.nearest.stop.time) + ')</li>').join('') + '</ol>' : '<p class="note">No appointments to compare yet.</p>') +
+    '<p class="note">Straight-line distance. Use Directions for drive time.</p>';
+}
+
+async function start() {
+  const groups = byDate();
+  renderPanel(groups);
+  if (PLAN.notice) document.getElementById('list').innerHTML = '<p class="empty">' + esc(PLAN.notice) + '</p>';
+  if (!API_KEY) {
+    document.getElementById('map').innerHTML = '<p class="empty">Map is not set up yet: add MAPS_API_KEY under Project Settings, Script properties.</p>';
+    return;
+  }
+  const { Map, InfoWindow, Polyline } = await google.maps.importLibrary('maps');
+  const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary('marker');
+  const { PlaceAutocompleteElement } = await google.maps.importLibrary('places');
+  const { LatLngBounds } = await google.maps.importLibrary('core');
+
+  map = new Map(document.getElementById('map'), {
+    mapId: MAP_ID, center: { lat: 35.23, lng: -80.84 }, zoom: 10,
+    mapTypeControl: false, streetViewControl: false, fullscreenControl: true
+  });
+  info = new InfoWindow();
+  const bounds = new LatLngBounds();
+
+  for (const s of PLAN.stops) {
+    const color = colorOf(s), wk2 = isWeek2(s);
+    const pin = new PinElement({
+      background: wk2 ? '#FFFFFF' : color, borderColor: color,
+      glyphColor: wk2 ? color : '#FFFFFF', glyph: String(s.n)
+    });
+    const marker = new AdvancedMarkerElement({ map, position: { lat: s.lat, lng: s.lng }, content: pin.element, title: s.title });
+    marker.addListener('click', () => focusStop(s));
+    markers.push({ marker, stop: s });
+    bounds.extend({ lat: s.lat, lng: s.lng });
+  }
+
+  for (const [date, stops] of groups) {
+    if (stops.length < 2) continue;
+    const line = new Polyline({
+      map, path: stops.map(s => ({ lat: s.lat, lng: s.lng })), strokeOpacity: 0,
+      icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.7, strokeColor: colorOf(stops[0]), scale: 3 }, offset: '0', repeat: '14px' }]
+    });
+    lines.push({ line, date });
+  }
+
+  focusStop = s => {
+    const m = markers.find(x => x.stop === s);
+    info.setContent('<div style="font:13px/1.4 sans-serif;max-width:240px"><b>' + esc(s.title) + '</b><br>' + esc(s.dayLabel) + ', ' +
+      esc(s.time) + '–' + esc(s.endTime) + '<br>' + esc(s.address) + '<br><a href="' + esc(directions(s)) + '" target="_blank" rel="noopener">Directions</a> · ' +
+      '<a href="' + esc(mapsSearch(s)) + '" target="_blank" rel="noopener">Open in Google Maps</a></div>');
+    info.open({ map, anchor: m.marker });
+    map.panTo({ lat: s.lat, lng: s.lng });
+  };
+
+  if (PLAN.stops.length > 1) map.fitBounds(bounds, 48);
+  else if (PLAN.stops.length === 1) map.setCenter({ lat: PLAN.stops[0].lat, lng: PLAN.stops[0].lng });
+
+  const search = new PlaceAutocompleteElement({ includedRegionCodes: ['us'] });
+  search.placeholder = 'Search a new address';
+  document.getElementById('search').appendChild(search);
+  let newPin = null;
+  const onSelect = async prediction => {
+    const place = prediction.toPlace();
+    await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
+    const point = { lat: place.location.lat(), lng: place.location.lng(), name: place.displayName || place.formattedAddress };
+    if (newPin) newPin.map = null;
+    const star = new PinElement({ background: '#1B2420', borderColor: '#FFFFFF', glyphColor: '#FFFFFF', glyph: '★', scale: 1.3 });
+    newPin = new AdvancedMarkerElement({ map, position: point, content: star.element, title: point.name, zIndex: 1000 });
+    const b = new LatLngBounds();
+    b.union(bounds);
+    b.extend(point);
+    map.fitBounds(b, 48);
+    showFit(point, groups);
+  };
+  search.addEventListener('gmp-select', e => onSelect(e.placePrediction));
+  search.addEventListener('gmp-placeselect', e => onSelect({ toPlace: () => e.place }));
+}
+
+function bootMap() {
+  start().catch(err => {
+    document.getElementById('map').innerHTML = '<p class="empty">The map could not load: ' + esc(err.message) + '</p>';
+  });
+}
+if (!API_KEY) bootMap();
+</script>
+<? if (apiKey) { ?>
+<script async src="https://maps.googleapis.com/maps/api/js?key=<?= apiKey ?>&v=weekly&loading=async&callback=bootMap"></script>
+<? } ?>
+</body>
+</html>
