@@ -13,6 +13,7 @@ function doGet(e) {
   var calendar = openCalendar_(calendarId);
   var plan = calendar ? buildPlan_(new Date(), calendar, calendar.getId()) : emptyPlan_(new Date(), 'You are signed in as ' + (viewer || 'an unknown account') + ', which cannot see the calendar ' + calendarId + '.');
   plan.viewer = viewer;
+  plan.calendars = listCalendars_(calendar ? calendar.getId() : calendarId, viewer);
   plan.pageUrl = pageUrl(CONFIG.deploymentId, e && e.parameter ? e.parameter.cal : '');
   var page = HtmlService.createTemplateFromFile('Index');
   page.planJson = JSON.stringify(plan).replace(/</g, '\\u003c');
@@ -21,6 +22,17 @@ function doGet(e) {
   return page.evaluate()
     .setTitle(CONFIG.title)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function listCalendars_(selectedId, viewer) {
+  var primaryId = CalendarApp.getDefaultCalendar().getId();
+  var raw = CalendarApp.getAllCalendars().map(function (cal) {
+    return { id: cal.getId(), name: cal.getName(), hidden: cal.isHidden(), primary: cal.getId() === primaryId, owned: cal.isOwnedByMe() };
+  });
+  return calendarOptions(raw, selectedId).map(function (opt) {
+    opt.url = accountUrl(CONFIG.deploymentId, opt.primary ? '' : opt.id, viewer);
+    return opt;
+  });
 }
 
 function openCalendar_(calendarId) {

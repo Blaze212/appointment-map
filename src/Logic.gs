@@ -39,3 +39,26 @@ function pageUrl(deploymentId, cal) {
   if (!deploymentId) return '';
   return 'https://script.google.com/macros/s/' + deploymentId + '/exec' + (cal ? '?cal=' + encodeURIComponent(cal) : '');
 }
+
+var PERSONAL_DOMAINS = ['gmail.com', 'googlemail.com'];
+var AUTO_CALENDARS = /(#holiday@|#contacts@|#weeknum@|addressbook#|@import\.calendar\.google\.com$)/;
+
+function accountUrl(deploymentId, cal, viewerEmail) {
+  if (!deploymentId) return '';
+  var domain = String(viewerEmail || '').split('@')[1] || '';
+  var base = domain && PERSONAL_DOMAINS.indexOf(domain.toLowerCase()) === -1
+    ? 'https://script.google.com/a/macros/' + domain.toLowerCase() + '/s/'
+    : 'https://script.google.com/macros/s/';
+  return base + deploymentId + '/exec' + (cal ? '?cal=' + encodeURIComponent(cal) : '');
+}
+
+function calendarOptions(calendars, selectedId) {
+  return calendars
+    .filter(function (c) { return !c.hidden && !AUTO_CALENDARS.test(c.id); })
+    .map(function (c) { return { id: c.id, name: c.name, primary: !!c.primary, owned: !!c.owned, selected: c.id === selectedId }; })
+    .sort(function (a, b) {
+      if (a.primary !== b.primary) return a.primary ? -1 : 1;
+      if (a.owned !== b.owned) return a.owned ? -1 : 1;
+      return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+    });
+}
