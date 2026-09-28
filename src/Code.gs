@@ -2,14 +2,19 @@ var CONFIG = {
   calendarId: 'primary',
   daysAhead: 14,
   timeZone: 'America/New_York',
-  title: 'Appointment Map'
+  title: 'Appointment Map',
+  deploymentId: 'AKfycbyj2Vnzl5IZo3r_nyd1EWWxflf90qnZwt32OkmjSOyRBPXofw7zIUFwWVZpPMt4M_gb',
+  switchAccounts: 4
 };
 
 function doGet(e) {
   var props = PropertiesService.getScriptProperties();
   var calendarId = pickCalendarId(e && e.parameter ? e.parameter.cal : '', props.getProperty('CALENDAR_ID'), CONFIG.calendarId);
+  var viewer = Session.getEffectiveUser().getEmail();
   var calendar = openCalendar_(calendarId);
-  var plan = calendar ? buildPlan_(new Date(), calendar, calendar.getId()) : emptyPlan_(new Date(), 'This Google account cannot see the calendar ' + calendarId + '. Open the link signed in as an account the calendar is shared with.');
+  var plan = calendar ? buildPlan_(new Date(), calendar, calendar.getId()) : emptyPlan_(new Date(), 'You are signed in as ' + (viewer || 'an unknown account') + ', which cannot see the calendar ' + calendarId + '. Try one of your other Google accounts below.');
+  plan.viewer = viewer;
+  plan.switchUrls = accountSwitchUrls(CONFIG.deploymentId, e && e.parameter ? e.parameter.cal : '', CONFIG.switchAccounts);
   var page = HtmlService.createTemplateFromFile('Index');
   page.planJson = JSON.stringify(plan).replace(/</g, '\\u003c');
   page.apiKey = props.getProperty('MAPS_API_KEY') || '';

@@ -13,6 +13,12 @@
   header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
   h1 { font-size: 18px; margin: 0; font-weight: 700; }
   .updated { color: var(--muted); font-size: 12px; }
+  .who { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+  .who b { color: var(--ink); font-weight: 600; }
+  .who a { color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; text-decoration: none; }
+  .who a:hover { background: var(--ground); }
+  .switch { display: grid; gap: 8px; padding: 12px; border: 1px solid #E8B4A8; background: #FFF6F3; border-radius: 8px; }
+  .switch .who { font-size: 13px; }
   #search { flex: 1 1 320px; min-width: 0; }
   #search gmp-place-autocomplete { width: 100%; }
   main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
@@ -50,6 +56,7 @@
   <div>
     <h1>Appointment Map</h1>
     <div class="updated" id="updated"></div>
+    <div class="who" id="who"></div>
   </div>
   <div id="search"></div>
 </header>
@@ -106,7 +113,18 @@ function byDate() {
   return groups;
 }
 
+function switchLinks() {
+  return (PLAN.switchUrls || []).map((url, i) => '<a href="' + esc(url) + '" target="_top">Account ' + (i + 1) + '</a>').join('');
+}
+
+function renderWho() {
+  const who = document.getElementById('who');
+  if (!PLAN.viewer) return;
+  who.innerHTML = 'Signed in as <b>' + esc(PLAN.viewer) + '</b>' + (PLAN.switchUrls && PLAN.switchUrls.length ? ' · Wrong account? ' + switchLinks() : '');
+}
+
 function renderPanel(groups) {
+  renderWho();
   document.getElementById('updated').textContent = (PLAN.calendarName ? PLAN.calendarName + ' · ' : '') + 'Updated ' + PLAN.generated + ' · ' + PLAN.stops.length + ' stops';
   const chips = document.getElementById('chips');
   const list = document.getElementById('list');
@@ -177,7 +195,7 @@ function showFit(place, groups) {
 async function start() {
   const groups = byDate();
   renderPanel(groups);
-  if (PLAN.notice) document.getElementById('list').innerHTML = '<p class="empty">' + esc(PLAN.notice) + '</p>';
+  if (PLAN.notice) document.getElementById('list').innerHTML = '<div class="switch"><p style="margin:0">' + esc(PLAN.notice) + '</p><div class="who">' + switchLinks() + '</div></div>';
   if (!API_KEY) {
     document.getElementById('map').innerHTML = '<p class="empty">Map is not set up yet: add MAPS_API_KEY under Project Settings, Script properties.</p>';
     return;
