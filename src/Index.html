@@ -15,8 +15,8 @@
   .updated { color: var(--muted); font-size: 12px; }
   .who { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
   .who b { color: var(--ink); font-weight: 600; }
-  .who a { color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; text-decoration: none; }
-  .who a:hover { background: var(--ground); }
+  .copy { font: inherit; font-size: 12px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+  .copy:hover { background: var(--ground); }
   .switch { display: grid; gap: 8px; padding: 12px; border: 1px solid #E8B4A8; background: #FFF6F3; border-radius: 8px; }
   .switch .who { font-size: 13px; }
   #search { flex: 1 1 320px; min-width: 0; }
@@ -113,18 +113,31 @@ function byDate() {
   return groups;
 }
 
-function switchLinks() {
-  return (PLAN.switchUrls || []).map((url, i) => '<a href="' + esc(url) + '" target="_top">Account ' + (i + 1) + '</a>').join('');
+const FIX_TEXT = 'Signed into more than one Google account? Google opens this page with the first one. Copy the link, open a private or incognito window, and sign in only with the account that has the calendar.';
+
+function copyButton() {
+  return PLAN.pageUrl ? '<button type="button" class="copy" id="copyLink">Copy link</button>' : '';
+}
+
+function wireCopy() {
+  const btn = document.getElementById('copyLink');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    navigator.clipboard.writeText(PLAN.pageUrl)
+      .then(() => { btn.textContent = 'Copied'; })
+      .catch(() => { window.prompt('Copy this link:', PLAN.pageUrl); });
+  });
 }
 
 function renderWho() {
-  const who = document.getElementById('who');
   if (!PLAN.viewer) return;
-  who.innerHTML = 'Signed in as <b>' + esc(PLAN.viewer) + '</b>' + (PLAN.switchUrls && PLAN.switchUrls.length ? ' · Wrong account? ' + switchLinks() : '');
+  document.getElementById('who').innerHTML = 'Signed in as <b>' + esc(PLAN.viewer) + '</b>' +
+    (PLAN.notice ? '' : ' · <span title="' + esc(FIX_TEXT) + '">Wrong account?</span> ' + copyButton());
 }
 
 function renderPanel(groups) {
   renderWho();
+  if (!PLAN.notice) wireCopy();
   document.getElementById('updated').textContent = (PLAN.calendarName ? PLAN.calendarName + ' · ' : '') + 'Updated ' + PLAN.generated + ' · ' + PLAN.stops.length + ' stops';
   const chips = document.getElementById('chips');
   const list = document.getElementById('list');
@@ -195,7 +208,8 @@ function showFit(place, groups) {
 async function start() {
   const groups = byDate();
   renderPanel(groups);
-  if (PLAN.notice) document.getElementById('list').innerHTML = '<div class="switch"><p style="margin:0">' + esc(PLAN.notice) + '</p><div class="who">' + switchLinks() + '</div></div>';
+  if (PLAN.notice) document.getElementById('list').innerHTML = '<div class="switch"><p style="margin:0">' + esc(PLAN.notice) + '</p><p style="margin:0">' + esc(FIX_TEXT) + '</p><div class="who">' + copyButton() + '</div></div>';
+  wireCopy();
   if (!API_KEY) {
     document.getElementById('map').innerHTML = '<p class="empty">Map is not set up yet: add MAPS_API_KEY under Project Settings, Script properties.</p>';
     return;

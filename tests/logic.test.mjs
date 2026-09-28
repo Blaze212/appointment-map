@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const ctx = {};
 vm.createContext(ctx);
 vm.runInContext(readFileSync(new URL('../src/Logic.gs', import.meta.url), 'utf8'), ctx);
-const { cleanLocation, shouldMap, isConfirmed, geocodeKey, pickCalendarId, accountSwitchUrls } = ctx;
+const { cleanLocation, shouldMap, isConfirmed, geocodeKey, pickCalendarId, pageUrl } = ctx;
 
 const now = new Date('2026-09-26T13:00:00-04:00');
 const later = new Date('2026-09-28T12:00:00-04:00');
@@ -54,14 +54,8 @@ test('pickCalendarId prefers the link, then the script setting, then the default
   assert.equal(pickCalendarId('  ', '', 'default@x.com'), 'default@x.com');
 });
 
-test('accountSwitchUrls builds one /u/N/ link per signed-in account and keeps the calendar', () => {
-  const urls = accountSwitchUrls('DEP123', 'bartoncrypto@gmail.com', 3);
-  assert.equal(urls.length, 3);
-  assert.equal(urls[0], 'https://script.google.com/macros/u/0/s/DEP123/exec?cal=bartoncrypto%40gmail.com');
-  assert.equal(urls[2], 'https://script.google.com/macros/u/2/s/DEP123/exec?cal=bartoncrypto%40gmail.com');
-});
-
-test('accountSwitchUrls omits the query when no calendar is chosen, and returns nothing without a deployment', () => {
-  assert.equal(accountSwitchUrls('DEP123', '', 1)[0], 'https://script.google.com/macros/u/0/s/DEP123/exec');
-  assert.equal(accountSwitchUrls('', 'x', 2).length, 0);
+test('pageUrl builds the plain deployment link and keeps the calendar', () => {
+  assert.equal(pageUrl('DEP123', 'bartoncrypto@gmail.com'), 'https://script.google.com/macros/s/DEP123/exec?cal=bartoncrypto%40gmail.com');
+  assert.equal(pageUrl('DEP123', ''), 'https://script.google.com/macros/s/DEP123/exec');
+  assert.equal(pageUrl('', 'x'), '');
 });

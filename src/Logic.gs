@@ -35,12 +35,7 @@ function pickCalendarId(fromUrl, fromSettings, fallback) {
   return '';
 }
 
-function accountSwitchUrls(deploymentId, cal, count) {
-  if (!deploymentId) return [];
-  var query = cal ? '?cal=' + encodeURIComponent(cal) : '';
-  var urls = [];
-  for (var i = 0; i < count; i++) {
-    urls.push('https://script.google.com/macros/u/' + i + '/s/' + deploymentId + '/exec' + query);
-  }
-  return urls;
+function pageUrl(deploymentId, cal) {
+  if (!deploymentId) return '';
+  return 'https://script.google.com/macros/s/' + deploymentId + '/exec' + (cal ? '?cal=' + encodeURIComponent(cal) : '');
 }
