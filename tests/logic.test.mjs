@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const ctx = {};
 vm.createContext(ctx);
 vm.runInContext(readFileSync(new URL('../src/Logic.gs', import.meta.url), 'utf8'), ctx);
-const { cleanLocation, shouldMap, isConfirmed, geocodeKey, pickCalendarId, pageUrl, accountUrl, calendarOptions } = ctx;
+const { cleanLocation, shouldMap, isConfirmed, geocodeKey, pickCalendarId, pageUrl, accountUrl, calendarOptions, deploymentIdFromUrl } = ctx;
 
 const now = new Date('2026-09-26T13:00:00-04:00');
 const later = new Date('2026-09-28T12:00:00-04:00');
@@ -77,4 +77,10 @@ test('calendarOptions drops hidden and auto calendars and puts the viewer\'s own
   ], 'btadjusting03@gmail.com');
   assert.deepEqual(opts.map(o => o.id), ['me@x.com', 'zed@group.calendar.google.com', 'btadjusting03@gmail.com']);
   assert.equal(opts.find(o => o.selected).id, 'btadjusting03@gmail.com');
+});
+
+test('deploymentIdFromUrl reads the id from plain and Workspace web app links', () => {
+  assert.equal(deploymentIdFromUrl('https://script.google.com/macros/s/AKfy_abc-1/exec'), 'AKfy_abc-1');
+  assert.equal(deploymentIdFromUrl('https://script.google.com/a/macros/example.com/s/AKfy_abc-1/exec'), 'AKfy_abc-1');
+  assert.equal(deploymentIdFromUrl(null), '');
 });

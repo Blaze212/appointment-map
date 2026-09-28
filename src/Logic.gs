@@ -62,3 +62,8 @@ function calendarOptions(calendars, selectedId) {
       return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
     });
 }
+
+function deploymentIdFromUrl(url) {
+  var match = /\/s\/([A-Za-z0-9_-]+)\/(exec|dev)/.exec(String(url || ''));
+  return match ? match[1] : '';
+}
