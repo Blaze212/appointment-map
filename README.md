@@ -1,4 +1,4 @@
-# Appointment Map
+# Appointment Mapper
 
 Google Apps Script web app. Every time the page opens it reads the next 14 days of
 the viewer's own calendar (or another one they can see, via `?cal=`), drops past, all-day, declined and video-call events, and pins

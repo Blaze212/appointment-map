@@ -2,7 +2,7 @@ var CONFIG = {
   calendarId: 'primary',
   daysAhead: 14,
   timeZone: 'America/New_York',
-  title: 'Appointment Map',
+  title: 'Appointment Mapper',
   deploymentId: 'AKfycbyj2Vnzl5IZo3r_nyd1EWWxflf90qnZwt32OkmjSOyRBPXofw7zIUFwWVZpPMt4M_gb'
 };
 

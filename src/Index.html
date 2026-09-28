@@ -21,7 +21,6 @@
   .switch .who { font-size: 13px; }
   .pick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
   .pick select { font: inherit; font-size: 13px; color: var(--ink); max-width: 260px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
-  .pick a { font-size: 12px; color: var(--ink); }
   #search { flex: 1 1 320px; min-width: 0; }
   #search gmp-place-autocomplete { width: 100%; }
   main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
@@ -57,10 +56,10 @@
 <body>
 <header>
   <div>
-    <h1>Appointment Map</h1>
+    <h1>Appointment Mapper</h1>
     <div class="updated" id="updated"></div>
     <div class="who" id="who"></div>
-    <label class="pick" id="pick" hidden>Calendar <select id="calPick"></select> <a id="calGo" target="_top" hidden>Show</a></label>
+    <label class="pick" id="pick" hidden>Calendar <select id="calPick"></select></label>
   </div>
   <div id="search"></div>
 </header>
@@ -137,16 +136,13 @@ function renderPicker() {
   const cals = PLAN.calendars || [];
   if (cals.length < 2) return;
   const select = document.getElementById('calPick');
-  const go = document.getElementById('calGo');
   select.innerHTML = cals.map((c, i) => '<option value="' + i + '"' + (c.selected ? ' selected' : '') + '>' +
     esc(c.name + (c.primary ? ' (yours)' : '')) + '</option>').join('');
   if (!cals.some(c => c.selected)) select.insertAdjacentHTML('afterbegin', '<option selected disabled>Choose a calendar</option>');
   document.getElementById('pick').hidden = false;
   select.addEventListener('change', () => {
     const url = cals[Number(select.value)].url;
-    go.href = url;
-    go.hidden = false;
-    try { window.top.location.href = url; } catch (err) { go.textContent = 'Show this calendar'; }
+    try { window.top.location.href = url; } catch (err) { window.open(url, '_top'); }
   });
 }
 
