@@ -13,6 +13,14 @@
   header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
   h1 { font-size: 18px; margin: 0; font-weight: 700; }
   .updated { color: var(--muted); font-size: 12px; }
+  .who { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+  .who b { color: var(--ink); font-weight: 600; }
+  .copy { font: inherit; font-size: 12px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+  .copy:hover { background: var(--ground); }
+  .switch { display: grid; gap: 8px; padding: 12px; border: 1px solid #E8B4A8; background: #FFF6F3; border-radius: 8px; }
+  .switch .who { font-size: 13px; }
+  .pick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .pick select { font: inherit; font-size: 13px; color: var(--ink); max-width: 260px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
   #search { flex: 1 1 320px; min-width: 0; }
   #search gmp-place-autocomplete { width: 100%; }
   main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
@@ -48,8 +56,10 @@
 <body>
 <header>
   <div>
-    <h1>Appointment Map</h1>
+    <h1>Appointment Mapper</h1>
     <div class="updated" id="updated"></div>
+    <div class="who" id="who"></div>
+    <label class="pick" id="pick" hidden>Calendar <select id="calPick"></select></label>
   </div>
   <div id="search"></div>
 </header>
@@ -106,7 +116,46 @@ function byDate() {
   return groups;
 }
 
+const FIX_TEXT = 'Signed into more than one Google account? Google opens this page with the first one. Copy the link, open a private or incognito window, and sign in only with the account that has the calendar.';
+
+function copyButton() {
+  return PLAN.pageUrl ? '<button type="button" class="copy" id="copyLink">Copy link</button>' : '';
+}
+
+function wireCopy() {
+  const btn = document.getElementById('copyLink');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    navigator.clipboard.writeText(PLAN.pageUrl)
+      .then(() => { btn.textContent = 'Copied'; })
+      .catch(() => { window.prompt('Copy this link:', PLAN.pageUrl); });
+  });
+}
+
+function renderPicker() {
+  const cals = PLAN.calendars || [];
+  if (cals.length < 2) return;
+  const select = document.getElementById('calPick');
+  select.innerHTML = cals.map((c, i) => '<option value="' + i + '"' + (c.selected ? ' selected' : '') + '>' +
+    esc(c.name + (c.primary ? ' (yours)' : '')) + '</option>').join('');
+  if (!cals.some(c => c.selected)) select.insertAdjacentHTML('afterbegin', '<option selected disabled>Choose a calendar</option>');
+  document.getElementById('pick').hidden = false;
+  select.addEventListener('change', () => {
+    const url = cals[Number(select.value)].url;
+    try { window.top.location.href = url; } catch (err) { window.open(url, '_top'); }
+  });
+}
+
+function renderWho() {
+  if (!PLAN.viewer) return;
+  document.getElementById('who').innerHTML = 'Signed in as <b>' + esc(PLAN.viewer) + '</b>' +
+    (PLAN.notice ? '' : ' · <span title="' + esc(FIX_TEXT) + '">Wrong account?</span> ' + copyButton());
+}
+
 function renderPanel(groups) {
+  renderWho();
+  renderPicker();
+  if (!PLAN.notice) wireCopy();
   document.getElementById('updated').textContent = (PLAN.calendarName ? PLAN.calendarName + ' · ' : '') + 'Updated ' + PLAN.generated + ' · ' + PLAN.stops.length + ' stops';
   const chips = document.getElementById('chips');
   const list = document.getElementById('list');
@@ -177,7 +226,8 @@ function showFit(place, groups) {
 async function start() {
   const groups = byDate();
   renderPanel(groups);
-  if (PLAN.notice) document.getElementById('list').innerHTML = '<p class="empty">' + esc(PLAN.notice) + '</p>';
+  if (PLAN.notice) document.getElementById('list').innerHTML = '<div class="switch"><p style="margin:0">' + esc(PLAN.notice) + '</p><p style="margin:0">' + esc(FIX_TEXT) + '</p><div class="who">' + copyButton() + '</div></div>';
+  wireCopy();
   if (!API_KEY) {
     document.getElementById('map').innerHTML = '<p class="empty">Map is not set up yet: add MAPS_API_KEY under Project Settings, Script properties.</p>';
     return;

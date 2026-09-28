@@ -2,14 +2,18 @@ var CONFIG = {
   calendarId: 'primary',
   daysAhead: 14,
   timeZone: 'America/New_York',
-  title: 'Appointment Map'
+  title: 'Appointment Mapper'
 };
 
 function doGet(e) {
   var props = PropertiesService.getScriptProperties();
   var calendarId = pickCalendarId(e && e.parameter ? e.parameter.cal : '', props.getProperty('CALENDAR_ID'), CONFIG.calendarId);
+  var viewer = Session.getEffectiveUser().getEmail();
   var calendar = openCalendar_(calendarId);
-  var plan = calendar ? buildPlan_(new Date(), calendar, calendar.getId()) : emptyPlan_(new Date(), 'This Google account cannot see the calendar ' + calendarId + '. Open the link signed in as an account the calendar is shared with.');
+  var plan = calendar ? buildPlan_(new Date(), calendar, calendar.getId()) : emptyPlan_(new Date(), 'You are signed in as ' + (viewer || 'an unknown account') + ', which cannot see the calendar ' + calendarId + '.');
+  plan.viewer = viewer;
+  plan.calendars = listCalendars_(calendar ? calendar.getId() : calendarId, viewer);
+  plan.pageUrl = pageUrl(deploymentId_(), e && e.parameter ? e.parameter.cal : '');
   var page = HtmlService.createTemplateFromFile('Index');
   page.planJson = JSON.stringify(plan).replace(/</g, '\\u003c');
   page.apiKey = props.getProperty('MAPS_API_KEY') || '';
@@ -17,6 +21,24 @@ function doGet(e) {
   return page.evaluate()
     .setTitle(CONFIG.title)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function deploymentId_() {
+  var fromSettings = PropertiesService.getScriptProperties().getProperty('DEPLOYMENT_ID');
+  if (fromSettings) return fromSettings.trim();
+  var service = ScriptApp.getService();
+  return deploymentIdFromUrl(service ? service.getUrl() : '');
+}
+
+function listCalendars_(selectedId, viewer) {
+  var primaryId = CalendarApp.getDefaultCalendar().getId();
+  var raw = CalendarApp.getAllCalendars().map(function (cal) {
+    return { id: cal.getId(), name: cal.getName(), hidden: cal.isHidden(), primary: cal.getId() === primaryId, owned: cal.isOwnedByMe() };
+  });
+  return calendarOptions(raw, selectedId).map(function (opt) {
+    opt.url = accountUrl(deploymentId_(), opt.primary ? '' : opt.id, viewer);
+    return opt;
+  });
 }
 
 function openCalendar_(calendarId) {
