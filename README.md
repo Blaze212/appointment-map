@@ -61,16 +61,14 @@ Each month Google gives you, for free:
 | Opening the map | 10,000 map loads | $7 per 1,000 |
 | Choosing an address in the search box | 5,000 lookups | $17 per 1,000 |
 
-That is about 330 map opens and 165 address searches every day. To make sure you can
-never go over:
+That is about 330 map opens and 165 address searches every day, far more than one person
+uses.
 
-1. Open **APIs & Services > Maps JavaScript API > Quotas** and set **Map loads per day**
-   to `300`.
-2. Do the same for **Places API (New)**: set the daily request limit to `150`.
-3. Open **Billing > Budgets & alerts** and create a budget of `$1` with an email alert.
-
-If a daily limit is reached, the map stops loading until the next day. Your appointments
-still show in the list.
+Open **Billing > Budgets & alerts** and create a budget of `$1` with an email alert, so you
+hear about it the moment anything is charged. A budget only warns you. It does not stop
+usage, and Google does not let you lower the daily map load limit (it shows as
+"Unlimited" and "Adjustable: No"). The key restrictions in step 1.4 are what stop anyone
+else from using your key on their own site.
 
 ---
 
